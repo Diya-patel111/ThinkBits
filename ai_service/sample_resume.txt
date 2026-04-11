@@ -1,0 +1,38 @@
+JOHN SMITH
+john.smith@thinkbits.ai | +1 (555) 987-6543 | San Francisco, CA
+
+SUMMARY
+Backend Architect and AI Engineeer with over 8 years of experience building highly scalable microservices, multi-agent systems, and real-time data pipelines.
+
+SKILLS
+Python, JavaScript, Node.js, React, FastAPI, Machine Learning, NLP, Docker, AWS, Azure, PostgreSQL, MongoDB
+
+EXPERIENCE
+Senior AI/ML Engineer
+TechFlow Solutions
+June 2021 - Present
+- Designed a hybrid RAG pipeline that reduced hallucination rates by 35%.
+- Led a team of 4 engineers to deploy a multi-agent system handling 50k requests/day.
+
+Backend Developer
+DataWorks Inc.
+August 2018 - May 2021
+- Migrated legacy monolith to scalable microservices using FastAPI and Docker.
+- Optimized database queries, reducing average latency from 400ms to 45ms.
+
+EDUCATION
+Master of Science in Computer Science
+Stanford University
+2016 - 2018
+
+Bachelor of Science in Mathematics
+University of California, Berkeley
+2012 - 2016
+
+PROJECTS
+Resume Parsing Agent
+- Built a 4-layer AI hybrid pipeline parsing PDFs into structured JSON under 2 seconds.
+
+CERTIFICATIONS
+- AWS Certified Solutions Architect
+- DeepLearning.AI Natural Language Processing Specialization

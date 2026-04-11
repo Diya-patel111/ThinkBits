@@ -12,3 +12,7 @@ sqlalchemy
 psycopg2-binary
 alembic
 python-dotenv
+
+PyMuPDF
+google-genai
+spacy
