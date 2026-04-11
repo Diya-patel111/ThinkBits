@@ -24,14 +24,11 @@ app.use('/api', apiRoutes);
 app.get('/health', (req, res) => res.status(200).json({ status: 'ok', msg: 'NexHire Backend is up and running' }));
 
 // Database connection and Server start
-mongoose.connect(MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
+mongoose.connect(MONGO_URI)
 .then(() => {
   console.log('MongoDB connection established successfully.');
   app.listen(PORT, () => {
-    console.log(\`Server is successfully running on http://localhost:\${PORT}\`);
+    console.log(`Server is successfully running on http://localhost:${PORT}`);
   });
 })
 .catch((err) => {

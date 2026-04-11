@@ -25,7 +25,7 @@ exports.parseResumes = async (req, res) => {
         // Structure the payload
         const candidateData = {
           name: parsedData.name || 'Unknown Candidate',
-          email: parsedData.email || \`unknown-\${Date.now()}@example.com\`,
+          email: parsedData.email || `unknown-${Date.now()}@example.com`,
           skills: parsedData.skills || [],
           experience: parsedData.experience !== undefined ? parsedData.experience : 0,
           education: parsedData.education || '',
@@ -81,7 +81,7 @@ exports.matchJobs = async (req, res) => {
     // Prepare data format for python
     const aiCandidatesPayload = candidates.map(c => ({
       id: c._id, 
-      text: \`\${c.skills.join(', ')} \${c.rawText}\`
+      text: `${c.skills.join(', ')} ${c.rawText}`
     }));
 
     // Perform AI Matching via Python Service
