@@ -6,6 +6,7 @@ import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import UploadResume from './pages/UploadResume';
 import JobMatching from './pages/JobMatching';
+import Layout from './components/Layout';
 
 function App() {
   return (
@@ -14,9 +15,11 @@ function App() {
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/upload" element={<UploadResume />} />
-        <Route path="/match" element={<JobMatching />} />
+        <Route element={<Layout />}>
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/upload" element={<UploadResume />} />
+          <Route path="/match" element={<JobMatching />} />
+        </Route>
       </Routes>
     </Router>
   );

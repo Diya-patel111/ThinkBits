@@ -11,13 +11,13 @@ export default function Landing() {
             NEXT-GEN RECRUITMENT
         </span>
         <h1 className="font-headline text-5xl lg:text-7xl font-extrabold tracking-tight text-on-surface mb-8 leading-[1.1]">
-            AI-Powered <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary-container">Resume Intelligence</span> & Smart Hiring
+            AI-Powered <span className="text-transparent bg-clip-text bg-linear-to-r from-primary to-primary-container">Resume Intelligence</span> & Smart Hiring
         </h1>
         <p className="text-on-surface-variant text-xl mb-10 max-w-2xl mx-auto leading-relaxed">
             Transform your talent acquisition with deep-learning analysis. Move beyond keywords to understand human potential with editorial-grade clarity.
         </p>
         <div className="flex flex-wrap justify-center gap-4">
-            <Link to="/signup" className="px-8 py-4 bg-gradient-to-br from-primary to-primary-container text-white font-bold rounded-lg text-lg shadow-xl hover:shadow-primary/20 transition-all">
+            <Link to="/signup" className="px-8 py-4 bg-linear-to-br from-primary to-primary-container text-white font-bold rounded-lg text-lg shadow-xl hover:shadow-primary/20 transition-all">
                 Get Started
             </Link>
             <Link to="/login" className="px-8 py-4 bg-surface-container-high text-primary font-bold rounded-lg text-lg hover:bg-surface-container-highest transition-all">
