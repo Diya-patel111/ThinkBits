@@ -1,5 +1,6 @@
 
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -10,18 +11,21 @@ import Layout from './components/Layout';
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Landing />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route element={<Layout />}>
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/upload" element={<UploadResume />} />
-          <Route path="/match" element={<JobMatching />} />
-        </Route>
-      </Routes>
-    </Router>
+    <>
+      <Toaster position="top-center" reverseOrder={false} />
+      <Router>
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route element={<Layout />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/upload" element={<UploadResume />} />
+            <Route path="/match" element={<JobMatching />} />
+          </Route>
+        </Routes>
+      </Router>
+    </>
   );
 }
 

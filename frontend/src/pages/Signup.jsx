@@ -1,12 +1,61 @@
-
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import toast from 'react-hot-toast';
+import { GoogleLogin } from '@react-oauth/google';
 
 export default function Signup() {
   const navigate = useNavigate();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
-  const handleSignup = (e) => {
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+      const response = await axios.post('http://localhost:5000/api/google-login', {
+        token: credentialResponse.credential,
+        mode: 'signup' // Specify this is a strict signup attempt
+      });
+
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('userName', response.data.user.name);
+      toast.success(response.data.message || 'Signup with Google successful!');
+      navigate('/dashboard');
+    } catch (error) {
+      if (error.response && error.response.data && error.response.data.error) {
+        toast.error(error.response.data.error); // E.g., User already exists
+      } else {
+        toast.error('Google signup failed. Please try again.');
+      }
+      console.error(error);
+    }
+  };
+
+  const handleSignup = async (e) => {
     e.preventDefault();
-    navigate('/dashboard');
+    if (!name || !email || !password) {
+      toast.error('Please fill in all fields.');
+      return;
+    }
+
+    try {
+      const response = await axios.post('http://localhost:5000/api/signup', {
+        name,
+        email,
+        password,
+      });
+
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('userName', response.data.user.name);
+      toast.success('Account created successfully!');
+      navigate('/dashboard');
+    } catch (error) {
+      if (error.response && error.response.data && error.response.data.error) {
+        toast.error(error.response.data.error); // E.g., User already exists
+      } else {
+        toast.error('An error occurred during signup. Please try again.');
+      }
+    }
   };
 
   return (
@@ -19,17 +68,52 @@ export default function Signup() {
         <form className="space-y-6" onSubmit={handleSignup}>
           <div className="space-y-2">
             <label className="block text-sm font-semibold text-on-surface-variant ml-1">Full Name</label>
-            <input type="text" placeholder="Alex Thompson" className="w-full px-4 py-3 bg-surface-container-low border-none rounded-lg focus:ring-2 focus:ring-primary/20" />
+            <input 
+              type="text" 
+              placeholder="Alex Thompson" 
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-4 py-3 bg-surface-container-low border-none rounded-lg focus:ring-2 focus:ring-primary/20" 
+            />
           </div>
           <div className="space-y-2">
             <label className="block text-sm font-semibold text-on-surface-variant ml-1">Work Email</label>
-            <input type="email" placeholder="alex@company.com" className="w-full px-4 py-3 bg-surface-container-low border-none rounded-lg focus:ring-2 focus:ring-primary/20" />
+            <input 
+              type="email" 
+              placeholder="alex@company.com" 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-3 bg-surface-container-low border-none rounded-lg focus:ring-2 focus:ring-primary/20" 
+            />
           </div>
           <div className="space-y-2">
             <label className="block text-sm font-semibold text-on-surface-variant ml-1">Password</label>
-            <input type="password" placeholder="••••••••" className="w-full px-4 py-3 bg-surface-container-low border-none rounded-lg focus:ring-2 focus:ring-primary/20" />
+            <input 
+              type="password" 
+              placeholder="••••••••" 
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-3 bg-surface-container-low border-none rounded-lg focus:ring-2 focus:ring-primary/20" 
+            />
           </div>
-          <button type="submit" className="w-full py-4 text-white bg-primary rounded-lg font-bold text-lg hover:scale-[1.01] transition-all">Create Account</button>
+          <div className="space-y-4">
+            <button type="submit" className="w-full py-4 text-white bg-primary rounded-lg font-bold text-lg hover:scale-[1.01] transition-all">Create Account</button>
+            <div className="flex items-center justify-center my-4">
+              <span className="h-px bg-slate-300 w-full"></span>
+              <span className="px-3 text-slate-500 text-sm font-medium">OR</span>
+              <span className="h-px bg-slate-300 w-full"></span>
+            </div>
+            <div className="flex justify-center">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => toast.error('Google Signup Failed')}
+                theme="filled_blue"
+                shape="rectangular"
+                width="315"
+                text="signup_with"
+              />
+            </div>
+          </div>
         </form>
         <p className="mt-8 text-center text-sm text-on-surface-variant">
           Already have a workspace? <Link to="/login" className="text-primary font-bold hover:underline">Sign In</Link>

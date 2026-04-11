@@ -1,9 +1,28 @@
+import { useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import { Bell, Search, User } from 'lucide-react';
 
 export default function Layout() {
   const location = useLocation();
+  const [userName, setUserName] = useState('Jane Smith');
+
+  useEffect(() => {
+    // Fetch the user's name from localStorage if logged in
+    const storedName = localStorage.getItem('userName');
+    if (storedName) {
+      setUserName(storedName);
+    }
+  }, []);
+
+  const getInitials = (name) => {
+    if (!name) return 'U';
+    const parts = name.trim().split(' ');
+    // If it's a single word name, just take first 2 letters or 1 letter
+    if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+    // Else take first letter of first name and first letter of last name
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  };
   
   const getPageTitle = () => {
     switch (location.pathname) {
@@ -42,10 +61,10 @@ export default function Layout() {
             
             <div className="flex items-center gap-3 pl-4 border-l border-slate-200 cursor-pointer hover:opacity-80 transition-opacity">
               <div className="bg-blue-100 text-blue-700 w-8 h-8 flex items-center justify-center rounded-full font-bold text-sm">
-                JS
+                {getInitials(userName)}
               </div>
               <div className="hidden sm:block text-sm">
-                <p className="font-semibold text-slate-700 leading-none">Jane Smith</p>
+                <p className="font-semibold text-slate-700 leading-none">{userName}</p>
                 <p className="text-slate-500 text-xs mt-0.5">Recruiter Admin</p>
               </div>
             </div>
