@@ -116,6 +116,8 @@ export default function JobMatching() {
               <div className="relative w-full h-1.5 bg-slate-200 rounded-full">
                 <div className="absolute top-0 left-0 h-full bg-blue-600 rounded-full" style={{ width: `${minScore}%` }}></div>
                 <input 
+                  id="min-score"
+                  name="min-score"
                   type="range" min="0" max="100" 
                   value={minScore} onChange={(e) => setMinScore(e.target.value)}
                   className="absolute top-0 left-0 w-full h-full opacity-0 cursor-pointer"
@@ -140,7 +142,7 @@ export default function JobMatching() {
             <div>
               <span className="text-sm font-semibold text-slate-700 mb-3 block">Location Preference</span>
               <div className="relative">
-                <select className="w-full appearance-none bg-white border border-slate-200 text-slate-700 text-sm rounded-lg pl-3 pr-10 py-2.5 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                <select id="location-pref" name="location-pref" className="w-full appearance-none bg-white border border-slate-200 text-slate-700 text-sm rounded-lg pl-3 pr-10 py-2.5 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
                   <option>Remote Only</option>
                   <option>Hybrid</option>
                   <option>On-site</option>

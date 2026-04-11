@@ -1,28 +1,31 @@
 from pydantic import BaseModel
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from sqlalchemy.orm import Session
-from database import get_db
-from models import Candidate
-from utils.file_parser import extract_text_from_pdf, extract_text_from_docx
 from sentence_transformers import SentenceTransformer, util
 from fastapi.middleware.cors import CORSMiddleware
-from agents.parsing_agent import ResumeParsingAgent
 import shutil
 import os
 import tempfile
 from pathlib import Path
 from dotenv import load_dotenv
 
+# Local project imports
+from database import get_db, engine
+import models
+from models import Candidate
+from utils.file_parser import FileParser
+from services.llm_service import LLMService
+
+# Load environment variables
 load_dotenv(Path(__file__).resolve().parent / ".env")
 
+# Initialize models and DB
+models.Base.metadata.create_all(bind=engine)
 model = SentenceTransformer('all-MiniLM-L6-v2')
+llm_service = LLMService()
+
+# Constants
 STANDARD_SKILLS = ["python", "java", "sql", "aws", "docker", "javascript", "react", "node", "typescript", "c++", "c#", "go", "ruby"]
-
-def parse_resume_text(text, filename):
-    return {"name": "Test", "email": "", "skills": []}
-
-def normalize_skills(skills):
-    return [str(s).lower() for s in skills]
 
 app = FastAPI(title="NexHire AI Service")
 
@@ -34,10 +37,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-parsing_agent = ResumeParsingAgent()
-
 @app.post("/api/v1/resume/parse")
-async def parse_resume(file: UploadFile = File(...)):
+async def parse_resume_api(file: UploadFile = File(...)):
     print(f"Received file: {file.filename}")
     suffix = Path(file.filename or "resume").suffix
     temp_file = None
@@ -45,8 +46,23 @@ async def parse_resume(file: UploadFile = File(...)):
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix or ".tmp") as buffer:
             shutil.copyfileobj(file.file, buffer)
             temp_file = buffer.name
-        result = await parsing_agent.parse(temp_file)
-        return dict(result)
+            
+        # 1. Extract raw text from the file using your FileParser
+        text_blocks = FileParser.extract_text(temp_file)
+        full_text = "\n".join([b["text"] for b in text_blocks])
+
+        # 2. Directly call the LLM service
+        parsed_data = await llm_service.extract_with_llm(full_text)
+
+        # Basic Cleanup
+        if "skills" in parsed_data and parsed_data["skills"]:
+            parsed_data["skills"] = [str(s).lower() for s in parsed_data["skills"]]
+
+        return {
+            "data": parsed_data,
+            "confidence_score": 0.95,
+            "execution_trace": ["Parsed successfully using direct LLM call"]
+        }
     except Exception as e:
         print("FastAPI parsing error:", e)
         return {"data": {}, "confidence_score": 0.0, "execution_trace": [f"API Error: {e}"]}
@@ -54,19 +70,17 @@ async def parse_resume(file: UploadFile = File(...)):
         if temp_file and os.path.exists(temp_file):
             os.remove(temp_file)
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-
-
 # --- Agent 3: Matching ---
 
 class MatchRequest(BaseModel):
     job_description: str
 
+class MathRequestWithCandidates(BaseModel):
+    jobDescription: str
+    candidates: list
+
 def compute_match_score(candidate_text: str, job_description: str) -> float:
     # 1. Semantic similarity using a snippet of the candidate text
-    # Limiting to 1000 chars ensures we don't dilute the embedding too much
     embeddings1 = model.encode(candidate_text[:1000], convert_to_tensor=True)
     embeddings2 = model.encode(job_description, convert_to_tensor=True)
     
@@ -81,58 +95,19 @@ def compute_match_score(candidate_text: str, job_description: str) -> float:
     
     for skill in STANDARD_SKILLS:
         if skill.lower() in job_lower:
-            # If the job asks for a standard skill, check if candidate has it
             if skill.lower() in cand_lower:
-                boost += 25.0  # Big boost for explicit skill match
+                boost += 25.0
                 matched_skills += 1
             else:
-                boost -= 10.0  # Penalty for missing a requested skill
+                boost -= 10.0
                 
-    # If job description mentions no standard skills, just rely more on semantic
     base_score = max(0, cosine_score * 100)
     
-    # We want a base score to be roughly 50-60 if it's somewhat relevant
     if base_score > 15:
         base_score += 40
         
     final_score = base_score + boost
-    
-    # Ensure realistic capping
     return max(0.0, min(final_score, 100.0))
-
-
-# --- API Routes ---
-
-@app.post("/parse")
-async def parse_resume(file: UploadFile = File(...)):
-    if not file.filename.endswith(('.pdf', '.docx', '.doc')):
-        raise HTTPException(status_code=400, detail="Only PDF and DOCX files are supported.")
-    
-    try:
-        contents = await file.read()
-        
-        if file.filename.endswith('.pdf'):
-            text = extract_text_from_pdf(contents)
-        else:
-            text = extract_text_from_docx(contents)
-            
-        parsed_data = parse_resume_text(text, file.filename)
-        
-        # apply normalization agent
-        normalized_skills = normalize_skills(parsed_data['skills'])
-        parsed_data['skills'] = normalized_skills
-        
-        # Return parsed data, let the Node.js backend handle database persistence
-        return parsed_data
-        
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
-
-class MathRequestWithCandidates(BaseModel):
-    jobDescription: str
-    candidates: list
 
 @app.post("/match")
 async def match_candidates(req: MathRequestWithCandidates):
@@ -140,13 +115,11 @@ async def match_candidates(req: MathRequestWithCandidates):
         results = []
         for cand in req.candidates:
             cand_text = cand.get('text', '')
-            # encode using candidate text directly
             score = compute_match_score(cand_text, req.jobDescription)
             results.append({
                 "id": str(cand.get('id')),
                 "score": round(score, 2)
             })
-        
         return results
     except Exception as e:
         import traceback
@@ -159,13 +132,12 @@ async def match_all_candidates(req: MatchRequest, db: Session = Depends(get_db))
         candidates = db.query(Candidate).all()
         results = []
         for cand in candidates:
-            # fetch skills
             cand_text = " ".join([s.skill.name for s in cand.skills])
             score = compute_match_score(cand_text, req.job_description)
             results.append({
                 "id": str(cand.id),
                 "name": cand.name,
-                "role": "Candidate", # Placeholder
+                "role": "Candidate",
                 "score": round(score, 2),
                 "skills": [s.skill.name for s in cand.skills]
             })

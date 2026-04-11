@@ -1,5 +1,5 @@
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UploadCloud, FileText, AlertCircle, Check, Loader2, X, ArrowRight, Layers, Cpu } from 'lucide-react';
 import { parseResumes } from '../services/api';
@@ -7,6 +7,7 @@ import { parseResumes } from '../services/api';
 export default function UploadResume() {
   const navigate = useNavigate();
   const [files, setFiles] = useState([]);
+  const [selectedData, setSelectedData] = useState(null);
   
   const fileInputRef = useRef(null);
 
@@ -22,6 +23,15 @@ export default function UploadResume() {
 
   const handleUploadClick = () => {
     if (fileInputRef.current) fileInputRef.current.click();
+  };
+
+  const getUploadErrorMessage = (err) => {
+    const backendError = err?.response?.data?.error;
+    const detailedError = err?.response?.data?.details?.[0]?.error;
+    if (backendError && backendError.trim()) return backendError;
+    if (detailedError && detailedError.trim()) return detailedError;
+    if (err?.message && err.message.trim()) return err.message;
+    return 'Unable to parse file. Please try again.';
   };
 
   const handleUpload = async (e) => {
@@ -52,7 +62,7 @@ export default function UploadResume() {
         // Count skills detected directly from the backend response candidates array
         const candidatesRes = response?.data?.candidates || [];
         const detectedSkills = candidatesRes.length > 0 ? (candidatesRes[0].skills?.length || 0) : 0;
-        const candidateName = candidatesRes.length > 0 && candidatesRes[0].name ? candidatesRes[0].name : fileItem.file.name;
+        const candidateName = candidatesRes.length > 0 && candidatesRes[0].name ? candidatesRes[0].name : fileItem.name;
         
         let displayMsg = `Parsed: ${detectedSkills} skills mapped.`;
         if (candidatesRes.length > 0 && candidatesRes[0]) {
@@ -64,14 +74,15 @@ export default function UploadResume() {
         
         setFiles(prev => prev.map(f => f.id === fileItem.id ? { 
           ...f, status: 'ready', progress: 100, name: candidateName,
-          message: displayMsg 
+          message: displayMsg, candidateData: candidatesRes[0] || null
         } : f));
       } catch(err) {
         clearInterval(interval);
         console.error("Failed to parse resume:", err);
+        const uploadErrorMessage = getUploadErrorMessage(err);
         setFiles(prev => prev.map(f => f.id === fileItem.id ? { 
           ...f, status: 'failed', 
-          message: 'Unable to parse file. Format not recognized.' 
+          message: uploadErrorMessage
         } : f));
       }
     }
@@ -103,11 +114,13 @@ export default function UploadResume() {
       
       setFiles(prev => prev.map(f => f.id === fileItem.id ? { 
         ...f, status: 'ready', progress: 100, name: candidateName,
-        message: `Parsed: ${detectedSkills} skills mapped.` 
+        message: `Parsed: ${detectedSkills} skills mapped.`, candidateData: candidatesRes[0] || null 
       } : f));
     } catch(err) {
       clearInterval(interval);
-      setFiles(prev => prev.map(f => f.id === fileItem.id ? { ...f, status: 'failed', message: 'Unable to parse file. Format not recognized.' } : f));
+      console.error("Failed to re-parse resume:", err);
+      const uploadErrorMessage = getUploadErrorMessage(err);
+      setFiles(prev => prev.map(f => f.id === fileItem.id ? { ...f, status: 'failed', message: uploadErrorMessage } : f));
     }
   };
 
@@ -147,6 +160,8 @@ export default function UploadResume() {
             </div>
             
              <input 
+               id="resume-upload"
+               name="resume-upload"
                type="file" multiple 
                ref={fileInputRef}
                className="hidden" 
@@ -222,10 +237,16 @@ export default function UploadResume() {
                            Ready
                          </div>
                          <button 
-                           onClick={() => navigate('/dashboard')}
-                           className="text-[11px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-wide cursor-pointer"
+                           onClick={() => {
+                             setSelectedData(file.candidateData);
+                             // Scroll to the profile panel on small screens
+                             setTimeout(() => {
+                               window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                             }, 100);
+                           }}
+                           className="text-[11px] font-bold text-blue-600 hover:text-blue-800 uppercase tracking-wide cursor-pointer flex items-center gap-1"
                          >
-                           View Data
+                           View Data <ArrowRight className="w-3 h-3" />
                          </button>
                        </div>
                     </div>
@@ -270,35 +291,101 @@ export default function UploadResume() {
         {/* Right Column - Overview & Cards */}
         <div className="lg:col-span-4 flex flex-col gap-6">
           
-          {/* Parsing Overview Card */}
-          <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm">
-            <h3 className="font-bold text-slate-900 text-lg mb-6">Parsing Overview</h3>
-            
-            <div className="flex justify-between items-center mb-5">
-              <span className="text-sm font-medium text-slate-600">Avg. Extraction Time</span>
-              <span className="font-bold text-slate-900">1.2s</span>
-            </div>
-            
-            <div className="mb-6">
-              <div className="flex justify-between items-center mb-3">
-                <span className="text-sm font-medium text-slate-600">Daily Limit Usage</span>
-                <span className="font-bold text-slate-900 text-sm">12 / 500</span>
+          {selectedData ? (
+            <div className="bg-white border border-blue-100 ring-4 ring-blue-50/50 rounded-2xl p-6 shadow-sm sticky top-6">
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
+                <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-blue-600" /> Candidate Profile
+                </h3>
+                <button onClick={() => setSelectedData(null)} className="text-slate-400 hover:text-slate-600 bg-slate-50 hover:bg-slate-100 p-1.5 rounded-full transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-              <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                <div className="bg-blue-600 h-full rounded-full" style={{ width: '5%' }}></div>
+              
+              <div className="space-y-6 overflow-y-auto max-h-[70vh] pr-2 custom-scrollbar">
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">FULL NAME</p>
+                  <p className="font-bold text-slate-800 text-base">{selectedData.name || 'Not Detected'}</p>
+                </div>
+                
+                {(selectedData.email || selectedData.phone) && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">EMAIL</p>
+                      <p className="font-semibold text-slate-700 text-sm truncate" title={selectedData.email}>{selectedData.email || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">PHONE</p>
+                      <p className="font-semibold text-slate-700 text-sm">{selectedData.phone || 'N/A'}</p>
+                    </div>
+                  </div>
+                )}
+                
+                {(selectedData.location || selectedData.experience > 0) && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">LOCATION</p>
+                      <p className="font-semibold text-slate-700 text-sm">{selectedData.location || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">EXPERIENCE</p>
+                      <p className="font-semibold text-slate-700 text-sm">{selectedData.experience ? `${selectedData.experience} Years/Roles` : 'None mapped'}</p>
+                    </div>
+                  </div>
+                )}
+                
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">TECHNICAL SKILLS ({selectedData.skills?.length || 0})</p>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedData.skills && selectedData.skills.length > 0 ? (
+                      selectedData.skills.map((skill, idx) => (
+                        <span key={idx} className="bg-blue-50 text-blue-700 border border-blue-100 px-2.5 py-1 rounded-md text-xs font-bold shadow-sm">
+                          {skill}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-sm font-medium text-slate-500 italic">No skills extracted.</span>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="pt-4 border-t border-slate-100 mt-6">
+                   <button onClick={() => navigate('/dashboard')} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl text-sm transition-colors flex items-center justify-center gap-2 shadow-sm">
+                     Go to Candidate Database <ArrowRight className="w-4 h-4" />
+                   </button>
+                </div>
               </div>
             </div>
+          ) : (
+            <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm">
+              <h3 className="font-bold text-slate-900 text-lg mb-6">Parsing Overview</h3>
+              
+              <div className="flex justify-between items-center mb-5">
+                <span className="text-sm font-medium text-slate-600">Avg. Extraction Time</span>
+                <span className="font-bold text-slate-900">1.2s</span>
+              </div>
+              
+              <div className="mb-6">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-sm font-medium text-slate-600">Daily Limit Usage</span>
+                  <span className="font-bold text-slate-900 text-sm">12 / 500</span>
+                </div>
+                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="bg-blue-600 h-full rounded-full" style={{ width: '5%' }}></div>
+                </div>
+              </div>
             
-            <div className="pt-5 border-t border-slate-100 mt-2 flex items-center gap-4">
-               <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center shrink-0">
-                 <Cpu className="w-5 h-5" />
-               </div>
-               <div>
-                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-800 mb-0.5">AI Status</p>
-                 <p className="text-xs font-medium text-slate-500">Model GPT-4o-Hybrid Active</p>
-               </div>
+              <div className="pt-5 border-t border-slate-100 mt-2 flex items-center gap-4">
+                 <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center shrink-0">
+                   <Cpu className="w-5 h-5" />
+                 </div>
+                 <div>
+                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-800 mb-0.5">AI Status</p>
+                   <p className="text-xs font-medium text-slate-500">Model Gemini-1.5-Hybrid Active</p>
+                 </div>
+              </div>
             </div>
-          </div>
+          )}
           
         </div>
       </div>

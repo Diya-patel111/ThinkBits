@@ -14,7 +14,7 @@ class LLMService:
         self.api_key = os.getenv("GEMINI_API_KEY")
         if self.api_key:
             self.client = genai.Client(api_key=self.api_key)
-            self.model_id = "gemini-1.5-flash"
+            self.model_id = "gemini-2.5-flash"
         else:
             logger.warning("GEMINI_API_KEY not found. Using local/fallback mock.")
             self.client = None
@@ -63,7 +63,9 @@ Must return ONLY raw JSON matching this structure exactly (handle missing with n
                 
         except Exception as e:
             logger.error(f"LLM Extraction Error: {e}")
-            return self._get_empty_schema()
+            import traceback
+            traceback.print_exc()
+            return await self._fallback_local_llm_extract(prompt)
 
     async def _fallback_local_llm_extract(self, prompt):
         # Mocking an async LLM call for fallback when API key is missing

@@ -1,6 +1,51 @@
 const Candidate = require('../models/Candidate');
-const AIService = require('../services/aiService');
 const fs = require('fs');
+const FormData = require('form-data');
+const axios = require('axios');
+const PYTHON_AI_BASE_URL = (process.env.PYTHON_AI_URL || 'http://localhost:8000').replace(/\/+$/, '');
+const PYTHON_PARSE_ENDPOINT = `${PYTHON_AI_BASE_URL}/api/v1/resume/parse`;
+const PYTHON_AI_TIMEOUT_MS = Number(process.env.PYTHON_AI_TIMEOUT_MS) || 120000;
+
+const getParserErrorInfo = (error) => {
+  if (error?.code === 'ECONNREFUSED') {
+    return {
+      status: 503,
+      code: 'PARSER_UNAVAILABLE',
+      message: 'Resume parser service is unavailable. Start the AI service and try again.'
+    };
+  }
+
+  if (error?.code === 'ECONNABORTED') {
+    return {
+      status: 504,
+      code: 'PARSER_TIMEOUT',
+      message: 'Resume parsing timed out. Please retry in a moment.'
+    };
+  }
+
+  const parserMessage =
+    error?.response?.data?.detail ||
+    error?.response?.data?.error ||
+    (typeof error?.response?.data === 'string' ? error.response.data : '') ||
+    (typeof error?.message === 'string' ? error.message : '');
+
+  const cleanedMessage = parserMessage && parserMessage.trim() ? parserMessage.trim() : 'Failed to process this resume file.';
+
+  return {
+    status: error?.response?.status || 500,
+    code: error?.code || 'PARSER_ERROR',
+    message: cleanedMessage
+  };
+};
+
+const safeDeleteUpload = async (filePath) => {
+  if (!filePath) return;
+  try {
+    await fs.promises.unlink(filePath);
+  } catch (cleanupErr) {
+    console.warn(`Unable to delete temp upload ${filePath}:`, cleanupErr?.message || cleanupErr);
+  }
+};
 
 /**
  * Process a resume upload
@@ -19,30 +64,60 @@ exports.parseResumes = async (req, res) => {
     // Loop through uploaded files
     for (const file of req.files) {
       try {
-        // Send file to Python AI Service
-        const parsedData = await AIService.parseResume(file.path);
+        // Forward the file directly to the Python AI service
+        const formData = new FormData();
+        const fileStream = fs.createReadStream(file.path);
+        formData.append('file', fileStream, file.originalname);
+
+        const pythonResponse = await axios.post(PYTHON_PARSE_ENDPOINT, formData, {
+            headers: {
+                ...formData.getHeaders(),
+            },
+            timeout: PYTHON_AI_TIMEOUT_MS // Parser startup/model warm-up can exceed 30s
+        });
         
-        // Structure the payload
+        const aiData = pythonResponse.data;
+        const parsedData = aiData.data || {};
+        
+        // Structure the payload for the Database
         const candidateData = {
           name: parsedData.name || 'Unknown Candidate',
           email: parsedData.email || `unknown-${Date.now()}@example.com`,
           skills: parsedData.skills || [],
-          experience: parsedData.experience !== undefined ? parsedData.experience : 0,
+          experience: Array.isArray(parsedData.experience) ? parsedData.experience.length : 0,
           location: parsedData.location || '',
           phone: parsedData.phone || '',
-          rawText: parsedData.raw_text || parsedData.rawText || ''
+          rawText: '' // Omitted for brevity, but you can send raw text back if needed
         };
 
         // Save to DB (using upsert logic)
         const updatedCandidate = await Candidate.upsert(candidateData);
 
-        parseResults.push(updatedCandidate);
-
-        // Optional: Clean up file after parsing
-        fs.unlinkSync(file.path);
+        parseResults.push({
+            ...updatedCandidate,
+            ...parsedData, // Merge the full AI extracted JSON (skills, experience, projects) back to frontend
+            confidence_score: aiData.confidence_score
+        });
       } catch (fileErr) {
-        errors.push({ filename: file.originalname, error: fileErr.message });
+        const parserError = getParserErrorInfo(fileErr);
+        console.error("Resume file processing error:", parserError, fileErr);
+        errors.push({
+          filename: file.originalname,
+          error: parserError.message,
+          code: parserError.code,
+          status: parserError.status
+        });
+      } finally {
+        await safeDeleteUpload(file.path);
       }
+    }
+
+    if (parseResults.length === 0 && errors.length > 0) {
+      const primaryError = errors[0];
+      return res.status(primaryError.status || 500).json({
+        error: primaryError.error || 'Failed to process resume.',
+        details: errors
+      });
     }
 
     return res.status(200).json({

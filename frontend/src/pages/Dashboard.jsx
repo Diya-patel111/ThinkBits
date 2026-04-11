@@ -88,6 +88,8 @@ export default function Dashboard() {
              <div className="relative">
                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                <input 
+                 id="search-candidates"
+                 name="search-candidates"
                  type="text" 
                  placeholder="Search by name or skill..." 
                  className="pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full sm:w-64" 
