@@ -6,16 +6,9 @@ import { parseResumes } from '../services/api';
 
 export default function UploadResume() {
   const navigate = useNavigate();
-  const [files, setFiles] = useState([
-    { id: 'demo-1', name: 'Senior_Engineer_2024.pdf', size: '2.4 MB', status: 'parsing', progress: 65, message: 'EXTRACTING TECHNICAL SKILLS...' },
-    { id: 'demo-2', name: 'Marketing_Lead_Resume.docx', size: '1.2 MB', status: 'ready', message: 'Profile intelligence fully mapped. 14 skills detected.' },
-    { id: 'demo-3', name: 'Corrupted_File_Test.pdf', size: '0.8 MB', status: 'failed', message: 'Unable to parse file. Format not recognized or file is protected.' }
-  ]);
+  const [files, setFiles] = useState([]);
   
   const fileInputRef = useRef(null);
-
-  // Clear out demo files immediately if we actually start matching in real use.
-  // For the sake of matching the design immediately on mount, they are pre-populated.
 
   const simulateProgress = (fileId) => {
     let progress = 0;
@@ -35,9 +28,6 @@ export default function UploadResume() {
     const selectedFiles = Array.from(e.target.files);
     if (!selectedFiles.length) return;
     
-    // Auto-clear demo data if actual files uploaded
-    const isMockData = files.some(f => f.id === 'demo-1');
-    
     const newFiles = selectedFiles.map(file => ({
       id: Math.random().toString(36).substring(7),
       fileObj: file,
@@ -48,7 +38,7 @@ export default function UploadResume() {
       message: 'EXTRACTING TECHNICAL SKILLS...'
     }));
     
-    setFiles(prev => isMockData ? [...newFiles] : [...newFiles, ...prev]);
+    setFiles(prev => [...newFiles, ...prev]);
 
     for (const fileItem of newFiles) {
       const interval = simulateProgress(fileItem.id);
@@ -59,20 +49,29 @@ export default function UploadResume() {
         const response = await parseResumes(formData);
         clearInterval(interval);
         
-        // Mocking skill detection count based on parsed API response mapping
+        // Count skills detected directly from the backend response candidates array
         const candidatesRes = response?.data?.candidates || [];
-        const detectedSkills = candidatesRes.length > 0 ? (candidatesRes[0].skills?.length || 5) : 14;
+        const detectedSkills = candidatesRes.length > 0 ? (candidatesRes[0].skills?.length || 0) : 0;
+        const candidateName = candidatesRes.length > 0 && candidatesRes[0].name ? candidatesRes[0].name : fileItem.file.name;
+        
+        let displayMsg = `Parsed: ${detectedSkills} skills mapped.`;
+        if (candidatesRes.length > 0 && candidatesRes[0]) {
+           const c = candidatesRes[0];
+           const emailStr = c.email ? c.email + ' • ' : '';
+           const skillsStr = c.skills && c.skills.length > 0 ? c.skills.slice(0,5).join(', ') + (c.skills.length>5?', ...':'') : 'No standard skills mapped';
+           displayMsg = emailStr + skillsStr;
+        }
         
         setFiles(prev => prev.map(f => f.id === fileItem.id ? { 
-          ...f, status: 'ready', progress: 100, 
-          message: `Profile intelligence fully mapped. ${detectedSkills} skills detected.` 
+          ...f, status: 'ready', progress: 100, name: candidateName,
+          message: displayMsg 
         } : f));
       } catch(err) {
         clearInterval(interval);
         console.error("Failed to parse resume:", err);
         setFiles(prev => prev.map(f => f.id === fileItem.id ? { 
           ...f, status: 'failed', 
-          message: 'Unable to parse file. Format not recognized or file is protected.' 
+          message: 'Unable to parse file. Format not recognized.' 
         } : f));
       }
     }
@@ -88,16 +87,7 @@ export default function UploadResume() {
   };
 
   const retryFile = async (fileItem) => {
-    if (!fileItem.fileObj) {
-      // It's a demo file, mock the retry success
-      setFiles(prev => prev.map(f => f.id === fileItem.id ? { ...f, status: 'parsing', progress: 0, message: 'EXTRACTING TECHNICAL SKILLS...' } : f));
-      const interval = simulateProgress(fileItem.id);
-      setTimeout(() => {
-        clearInterval(interval);
-        setFiles(prev => prev.map(f => f.id === fileItem.id ? { ...f, status: 'ready', progress: 100, message: 'Profile intelligence fully mapped. 12 skills detected.' } : f));
-      }, 1500);
-      return;
-    }
+    if (!fileItem.fileObj) return;
     
     setFiles(prev => prev.map(f => f.id === fileItem.id ? { ...f, status: 'parsing', progress: 0, message: 'EXTRACTING TECHNICAL SKILLS...' } : f));
     const interval = simulateProgress(fileItem.id);
@@ -105,12 +95,19 @@ export default function UploadResume() {
     formData.append("resumes", fileItem.fileObj);
     
     try {
-      await parseResumes(formData);
+      const response = await parseResumes(formData);
       clearInterval(interval);
-      setFiles(prev => prev.map(f => f.id === fileItem.id ? { ...f, status: 'ready', progress: 100, message: 'Profile intelligence fully mapped. Skills detected.' } : f));
+      const candidatesRes = response?.data?.candidates || [];
+      const detectedSkills = candidatesRes.length > 0 ? (candidatesRes[0].skills?.length || 0) : 0;
+      const candidateName = candidatesRes.length > 0 ? candidatesRes[0].name : fileItem.name;
+      
+      setFiles(prev => prev.map(f => f.id === fileItem.id ? { 
+        ...f, status: 'ready', progress: 100, name: candidateName,
+        message: `Parsed: ${detectedSkills} skills mapped.` 
+      } : f));
     } catch(err) {
       clearInterval(interval);
-      setFiles(prev => prev.map(f => f.id === fileItem.id ? { ...f, status: 'failed', message: 'Unable to parse file. Format not recognized or file is protected.' } : f));
+      setFiles(prev => prev.map(f => f.id === fileItem.id ? { ...f, status: 'failed', message: 'Unable to parse file. Format not recognized.' } : f));
     }
   };
 

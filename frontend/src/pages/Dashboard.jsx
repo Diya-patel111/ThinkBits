@@ -114,7 +114,7 @@ export default function Dashboard() {
               {loading ? (
                  <tr><td colSpan="5" className="px-6 py-8 text-center text-slate-500">Loading candidates...</td></tr>
               ) : candidates.length > 0 ? (
-                candidates.slice(0, 8).map((c, i) => (
+                  candidates.slice(0, 50).map((c, i) => (
                   <tr key={c.id || i} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">

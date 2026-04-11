@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { FileText, Target, Zap, ChevronDown, Check, User, ChevronRight } from 'lucide-react';
 import { matchJobs } from '../services/api';
 
@@ -11,23 +11,6 @@ export default function JobMatching() {
   const [minScore, setMinScore] = useState(75);
 
   const wordsCount = jobDescription.trim() ? jobDescription.trim().split(/\s+/).length : 0;
-
-  const mockResults = [
-    { 
-      id: 101, name: 'Alexander Wright', role: 'Senior Product Designer', exp: '8', score: 94, 
-      topMatches: ['Figma Mastery', 'Design Systems', 'SaaS Product'],
-      gaps: ['Cinebench B2B', 'German Language']
-    },
-    { 
-      id: 102, name: 'Sarah Chen', role: 'UX Researcher & Lead', exp: '6', score: 87, 
-      topMatches: ['User Testing', 'Stakeholder Mgmt'],
-      gaps: ['Motion Design']
-    },
-    { 
-      id: 103, name: 'Marcus Thorne', role: '', exp: '', score: 72, 
-      topMatches: [], gaps: [], isUnderThreshold: true
-    }
-  ];
 
   const handleMatch = async () => {
     if (!jobDescription.trim()) return;

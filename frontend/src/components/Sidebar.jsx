@@ -1,6 +1,6 @@
 
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, UploadCloud, Users, Settings, BrainCircuit } from 'lucide-react';
+import { LayoutDashboard, UploadCloud, Users, Settings, BrainCircuit, Code } from 'lucide-react';
 
 export default function Sidebar() {
   const location = useLocation();
@@ -55,6 +55,18 @@ export default function Sidebar() {
         >
           <Users className="w-5 h-5" />
           <span>Job Matching</span>
+        </Link>
+        
+        <Link 
+          to="/api-docs" 
+          className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 text-sm font-medium ${
+            isActive('/api-docs') 
+              ? 'bg-blue-50 text-blue-700' 
+              : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+          }`}
+        >
+          <Code className="w-5 h-5" />
+          <span>API Access</span>
         </Link>
       </div>
 

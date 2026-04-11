@@ -30,7 +30,7 @@ exports.parseResumes = async (req, res) => {
           experience: parsedData.experience !== undefined ? parsedData.experience : 0,
           location: parsedData.location || '',
           phone: parsedData.phone || '',
-          rawText: parsedData.rawText || ''
+          rawText: parsedData.raw_text || parsedData.rawText || ''
         };
 
         // Save to DB (using upsert logic)

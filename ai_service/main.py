@@ -55,21 +55,88 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
                 text += t + "\n"
     return text
 
-def extract_text_from_docx(file_bytes: bytes) -> str:
-    # docx library requires file-like object
-    doc = docx.Document(io.BytesIO(file_bytes))
-    return "\n".join([para.text for para in doc.paragraphs])
+import zipfile
+import xml.etree.ElementTree as ET
 
-def parse_resume_text(text: str):
+def extract_text_from_docx(file_bytes: bytes) -> str:
+    """Robust extraction reading all text directly from DOCX XML to overcome nested elements and shapes"""
+    try:
+        text = []
+        with zipfile.ZipFile(io.BytesIO(file_bytes)) as docx_zip:
+            # We specifically read the main document xml
+            xml_content = docx_zip.read('word/document.xml')
+            tree = ET.fromstring(xml_content)
+            
+            # The namespace for paragraph text is typically w:t
+            namespaces = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
+            
+            # Find all <w:p> elements (paragraphs)
+            for p in tree.findall('.//w:p', namespaces):
+                para_text = []
+                # Find all <w:t> elements (text runs) within this paragraph
+                for t in p.findall('.//w:t', namespaces):
+                    if t.text:
+                        para_text.append(t.text)
+                
+                if para_text:
+                    text.append("".join(para_text))
+                    
+        return "\n".join(text)
+    except Exception as e:
+        # Fallback to python-docx if zipfile parsing fails for some reason
+        doc = docx.Document(io.BytesIO(file_bytes))
+        fullText = []
+        for para in doc.paragraphs:
+            if para.text.strip():
+                fullText.append(para.text.strip())
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for para in cell.paragraphs:
+                        if para.text.strip():
+                            fullText.append(para.text.strip())
+        return "\n".join(fullText)
+
+def parse_resume_text(text: str, filename: str = ""):
     """Simple regex based extraction of name, emails, and skills"""
     # Exract Email
     email_pattern = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
     emails = re.findall(email_pattern, text)
     email = emails[0] if emails else ""
     
-    # Extract Name (Heuristic: first line or first word)
+    # Extract Name (Heuristic: Search through the first few non-empty lines)
     lines = [line.strip() for line in text.split('\n') if line.strip()]
-    name = lines[0] if lines else "Unknown"
+    
+    ignore_keywords = {"resume", "curriculum vitae", "cv", "page", "profile", "contact", "email", "phone", "summary", "knowledge", "skill", "education", "experience", "github", "linkedin", "portfolio", "personal"}
+    
+    name = "Unknown Candidate"
+    for line in lines[:20]: # Check only the top parts
+        clean_line = line.strip()
+        lower_line = clean_line.lower()
+        
+        # Skip too short or too long lines
+        if len(clean_line) < 3 or len(clean_line.split()) > 4:
+            continue
+        # Skip lines that look like emails, urls, or phone numbers
+        if "@" in clean_line or "www." in lower_line or ".com" in lower_line or "http" in lower_line or re.search(r'\d', clean_line):
+            continue
+        # Skip if it contains typical resume section headers
+        if any(kw == w for kw in ignore_keywords for w in re.split(r'\W+', lower_line)):
+            continue
+        # If it looks like a valid name (letters, spaces, dots)
+        if re.match(r'^[a-zA-Z\s\.\'-]+$', clean_line) and len(clean_line.split()) > 1:
+            name = clean_line.title()
+            break
+
+    if name == "Unknown Candidate":
+        if filename:
+            # Fallback to filename (removing extension)
+            import os
+            base_name = os.path.splitext(filename)[0]
+            # Replace underscores and dashes with spaces, then title case
+            name = base_name.replace('_', ' ').replace('-', ' ').title()
+        elif email:
+            name = email.split('@')[0].replace('.', ' ').title()
 
     # Extract Skills (Heuristic: look for known skills in text)
     found_skills = []
@@ -155,7 +222,7 @@ def compute_match_score(candidate_text: str, job_description: str) -> float:
 # --- API Routes ---
 
 @app.post("/parse")
-async def parse_resume(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def parse_resume(file: UploadFile = File(...)):
     if not file.filename.endswith(('.pdf', '.docx', '.doc')):
         raise HTTPException(status_code=400, detail="Only PDF and DOCX files are supported.")
     
@@ -167,42 +234,18 @@ async def parse_resume(file: UploadFile = File(...), db: Session = Depends(get_d
         else:
             text = extract_text_from_docx(contents)
             
-        parsed_data = parse_resume_text(text)
+        parsed_data = parse_resume_text(text, file.filename)
         
         # apply normalization agent
         normalized_skills = normalize_skills(parsed_data['skills'])
         parsed_data['skills'] = normalized_skills
         
-        # Save to DB
-        candidate = Candidate(
-            name=parsed_data['name'],
-            email=parsed_data['email'],
-            raw_resume_text=parsed_data['raw_text'],
-            phone="",
-            location=""
-        )
-        db.add(candidate)
-        db.flush() # get ID
-        
-        for skill_name in normalized_skills:
-            # Check if skill exists
-            skill = db.query(Skill).filter(Skill.name == skill_name).first()
-            if not skill:
-                skill = Skill(name=skill_name, category="Auto-extracted")
-                db.add(skill)
-                db.flush()
-                
-            cs = CandidateSkill(candidate_id=candidate.id, skill_id=skill.id)
-            db.add(cs)
-            
-        db.commit()
-        db.refresh(candidate)
-        
-        parsed_data['id'] = str(candidate.id)
+        # Return parsed data, let the Node.js backend handle database persistence
         return parsed_data
         
     except Exception as e:
-        db.rollback()
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 class MathRequestWithCandidates(BaseModel):

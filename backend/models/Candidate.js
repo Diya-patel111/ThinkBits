@@ -60,6 +60,7 @@ class Candidate {
       LEFT JOIN candidate_skills cs ON c.id = cs.candidate_id
       LEFT JOIN skills s ON cs.skill_id = s.id
       GROUP BY c.id
+      ORDER BY c.created_at DESC
     `);
     return res.rows;
   }
