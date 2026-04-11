@@ -1,42 +1,26 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
-// Pages
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Landing from './pages/Landing';
 import Login from './pages/Login';
+import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
+import UploadResume from './pages/UploadResume';
 import JobMatching from './pages/JobMatching';
 
-// Components
-import ProtectedRoute from './components/ProtectedRoute';
-
-const App = () => {
+function App() {
   return (
     <Router>
       <Routes>
-        <Route path='/' element={<Landing />} />
-        <Route path='/login' element={<Login />} />
-
-        {/* Protected Routes */}
-        <Route 
-          path='/dashboard' 
-          element={
-            <ProtectedRoute roles={['user', 'admin']}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route 
-          path='/job-matching' 
-          element={
-            <ProtectedRoute roles={['user', 'admin']}>
-              <JobMatching />
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/upload" element={<UploadResume />} />
+        <Route path="/match" element={<JobMatching />} />
       </Routes>
     </Router>
   );
-};
+}
 
 export default App;
+  
