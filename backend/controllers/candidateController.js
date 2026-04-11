@@ -28,16 +28,13 @@ exports.parseResumes = async (req, res) => {
           email: parsedData.email || `unknown-${Date.now()}@example.com`,
           skills: parsedData.skills || [],
           experience: parsedData.experience !== undefined ? parsedData.experience : 0,
-          education: parsedData.education || '',
+          location: parsedData.location || '',
+          phone: parsedData.phone || '',
           rawText: parsedData.rawText || ''
         };
 
-        // Save to DB (using upsert logic by email if it exists, or just create new)
-        const updatedCandidate = await Candidate.findOneAndUpdate(
-          { email: candidateData.email },
-          candidateData,
-          { upsert: true, new: true, setDefaultsOnInsert: true }
-        );
+        // Save to DB (using upsert logic)
+        const updatedCandidate = await Candidate.upsert(candidateData);
 
         parseResults.push(updatedCandidate);
 
@@ -72,7 +69,7 @@ exports.matchJobs = async (req, res) => {
     }
 
     // Retrieve all active candidates from database
-    const candidates = await Candidate.find().lean();
+    const candidates = await Candidate.getAll();
 
     if (candidates.length === 0) {
       return res.status(200).json({ message: 'No candidates currently available to match', matches: [] });
@@ -80,8 +77,8 @@ exports.matchJobs = async (req, res) => {
 
     // Prepare data format for python
     const aiCandidatesPayload = candidates.map(c => ({
-      id: c._id, 
-      text: `${c.skills.join(', ')} ${c.rawText}`
+      id: c.id, 
+      text: `${(c.skills || []).join(', ')} ${c.raw_resume_text || ''}`
     }));
 
     // Perform AI Matching via Python Service
@@ -91,7 +88,7 @@ exports.matchJobs = async (req, res) => {
     // Expected python response mapping: { [candidateId]: matchScorePercent } or [ { id, score } ]
     
     let scoredCandidates = candidates.map(c => {
-      let scoreObj = Array.isArray(aiMatchesResponse) ? aiMatchesResponse.find(m => m.id === c._id.toString()) : null;
+      let scoreObj = Array.isArray(aiMatchesResponse) ? aiMatchesResponse.find(m => m.id === c.id.toString()) : null;
       let aiScore = scoreObj ? scoreObj.score : 0;
       return { ...c, matchScore: aiScore };
     });
