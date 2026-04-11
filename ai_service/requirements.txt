@@ -4,6 +4,8 @@ python-multipart
 pdfplumber
 python-docx
 sentence-transformers
+transformers
+torch
 thefuzz
 scikit-learn
 sqlalchemy

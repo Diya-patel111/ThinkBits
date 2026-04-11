@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from thefuzz import process, fuzz
 from sentence_transformers import SentenceTransformer, util
+from transformers import pipeline
 from sqlalchemy.orm import Session
 from database import get_db
 from models import Candidate, CandidateSkill, Skill
@@ -24,6 +25,12 @@ app.add_middleware(
 
 # Load the Sentence Transformer model
 model = SentenceTransformer('all-MiniLM-L6-v2')
+
+# Load the QA pipeline for NLP extraction
+try:
+    qa_pipeline = pipeline("question-answering", model="deepset/roberta-base-squad2")
+except Exception as e:
+    qa_pipeline = None
 
 # Define normalized skills dictionary
 SKILL_MAPPING = {
@@ -98,57 +105,71 @@ def extract_text_from_docx(file_bytes: bytes) -> str:
         return "\n".join(fullText)
 
 def parse_resume_text(text: str, filename: str = ""):
-    """Simple regex based extraction of name, emails, and skills"""
-    # Exract Email
+    """Extract key details using Natural Language Processing (QA model + heuristics)"""
+    # Extract Email
     email_pattern = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
     emails = re.findall(email_pattern, text)
     email = emails[0] if emails else ""
     
-    # Extract Name (Heuristic: Search through the first few non-empty lines)
-    lines = [line.strip() for line in text.split('\n') if line.strip()]
-    
-    ignore_keywords = {"resume", "curriculum vitae", "cv", "page", "profile", "contact", "email", "phone", "summary", "knowledge", "skill", "education", "experience", "github", "linkedin", "portfolio", "personal"}
-    
     name = "Unknown Candidate"
-    for line in lines[:20]: # Check only the top parts
-        clean_line = line.strip()
-        lower_line = clean_line.lower()
-        
-        # Skip too short or too long lines
-        if len(clean_line) < 3 or len(clean_line.split()) > 4:
-            continue
-        # Skip lines that look like emails, urls, or phone numbers
-        if "@" in clean_line or "www." in lower_line or ".com" in lower_line or "http" in lower_line or re.search(r'\d', clean_line):
-            continue
-        # Skip if it contains typical resume section headers
-        if any(kw == w for kw in ignore_keywords for w in re.split(r'\W+', lower_line)):
-            continue
-        # If it looks like a valid name (letters, spaces, dots)
-        if re.match(r'^[a-zA-Z\s\.\'-]+$', clean_line) and len(clean_line.split()) > 1:
-            name = clean_line.title()
-            break
+    experience = 0
+    found_skills = []
+    
+    # Text truncation for QA (LLM context window)
+    context_text = text[:3000] # First 3000 characters typically hold name and summary
+    
+    if qa_pipeline:
+        try:
+            # Predict Name
+            ans_name = qa_pipeline(question="What is the name of the candidate?", context=context_text)
+            if ans_name['score'] > 0.3:
+                name = ans_name['answer'].title()
+            
+            # Predict Experience
+            ans_exp = qa_pipeline(question="How many years of experience does the candidate have? answer in a number", context=context_text[:2000])
+            if ans_exp['score'] > 0.1:
+                # regex to find the number in the answer
+                exp_match = re.search(r'(\d+)', ans_exp['answer'])
+                if exp_match:
+                    experience = int(exp_match.group(1))
+        except Exception:
+            pass
+
+    # Fallback and Heuristics for Name
+    if name == "Unknown Candidate" or len(name) < 3 or "@" in name:
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
+        ignore_keywords = {"resume", "curriculum vitae", "cv", "page", "profile", "contact", "email", "phone", "summary"}
+        for line in lines[:20]:
+            clean_line = line.strip()
+            lower_line = clean_line.lower()
+            if len(clean_line) < 3 or len(clean_line.split()) > 4: continue
+            if "@" in clean_line or "www." in lower_line or ".com" in lower_line or re.search(r'\d', clean_line): continue
+            if any(kw == w for kw in ignore_keywords for w in re.split(r'\W+', lower_line)): continue
+            if re.match(r'^[a-zA-Z\s\.\'-]+$', clean_line) and len(clean_line.split()) > 1:
+                name = clean_line.title()
+                break
 
     if name == "Unknown Candidate":
         if filename:
-            # Fallback to filename (removing extension)
             import os
             base_name = os.path.splitext(filename)[0]
-            # Replace underscores and dashes with spaces, then title case
             name = base_name.replace('_', ' ').replace('-', ' ').title()
         elif email:
             name = email.split('@')[0].replace('.', ' ').title()
 
-    # Extract Skills (Heuristic: look for known skills in text)
-    found_skills = []
+    # NLP and Heuristic Skills Extraction
     text_lower = text.lower()
     for skill in STANDARD_SKILLS:
-        if skill.lower() in text_lower:
+        # Check whole word match for skills
+        if re.search(r'\b' + re.escape(skill.lower()) + r'\b', text_lower):
             found_skills.append(skill)
 
-    # For experience, heuristic: look for years
-    experience_pattern = r'(\d+)\+?\s*(years|yrs)'
-    exp_matches = re.search(experience_pattern, text_lower)
-    experience = int(exp_matches.group(1)) if exp_matches else 0
+    # Fallback for experience if QA failed
+    if experience == 0:
+        experience_pattern = r'(\d+)\+?\s*(?:years|yrs)\s*(?:of\s*)?(?:experience|exp)?'
+        exp_matches = re.search(experience_pattern, text_lower)
+        if exp_matches:
+            experience = int(exp_matches.group(1))
 
     return {
         "name": name,

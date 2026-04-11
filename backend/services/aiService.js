@@ -1,5 +1,6 @@
 const axios = require('axios');
 const fs = require('fs');
+const path = require('path');
 const FormData = require('form-data');
 
 const PYTHON_API_URL = process.env.PYTHON_AI_URL || 'http://localhost:8000';
@@ -22,14 +23,19 @@ class AIService {
       return response.data; // Expected { name, email, skills, experience, education, rawText }
     } catch (error) {
       console.error('Error communicating with AI parser service:', error.message);
-      // Returning mock data for demonstration if python service is offline
+      
+      // Extract filename to display instead of a random mock candidate
+      const fileName = path.basename(filePath);
+      const displayName = fileName.split('.')[0].replace(/[-_]/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
+
+      // Returning mock data using the filename if python service is offline or failing
       return {
-        name: "Mock Candidate",
-        email: `mock-${Date.now()}@example.com`,
-        skills: ["Mock", "Data", "AI"],
-        experience: 5,
-        education: "Mock University",
-        rawText: "Mock extracted text from PDF..."
+        name: displayName || "Mock Candidate",
+        email: `${displayName.replace(/\s+/g, '').toLowerCase() || 'candidate'}@example.com`,
+        skills: ["Unparsed"],
+        experience: 0,
+        education: "Unknown",
+        rawText: "Failed to extract text. AI Python service may be offline."
       };
     }
   }
