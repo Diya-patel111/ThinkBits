@@ -1,6 +1,6 @@
 
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, UploadCloud, Users, Settings, Briefcase } from 'lucide-react';
+import { LayoutDashboard, UploadCloud, Users, Settings, BrainCircuit } from 'lucide-react';
 
 export default function Sidebar() {
   const location = useLocation();
@@ -11,9 +11,9 @@ export default function Sidebar() {
     <aside className="h-screen w-64 fixed left-0 top-0 bg-white border-r border-slate-200 flex flex-col font-sans z-40">
       {/* Brand */}
       <div className="h-16 flex items-center px-6 border-b border-slate-200">
-        <div className="flex items-center gap-2 text-indigo-600">
-          <Briefcase className="w-6 h-6 shrink-0" strokeWidth={2.5} />
-          <span className="text-xl font-bold tracking-tight text-slate-900">ResumeIntel</span>
+        <div className="flex items-center gap-2 text-primary">
+          <BrainCircuit className="w-6 h-6 shrink-0" strokeWidth={2.5} />
+          <span className="text-xl font-bold tracking-tight text-slate-900">NexHire AI</span>
         </div>
       </div>
 

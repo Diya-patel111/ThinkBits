@@ -1,7 +1,7 @@
 
 import { useState } from 'react';
 import { UploadCloud, File, AlertCircle, CheckCircle2, Loader2, X } from 'lucide-react';
-import axios from 'axios';
+import { parseResumes } from '../services/api';
 
 export default function UploadResume() {
   const [files, setFiles] = useState([]);
@@ -19,16 +19,13 @@ export default function UploadResume() {
       const uploadedFiles = [];
       for (const file of selectedFiles) {
         const formData = new FormData();
-        formData.append("file", file);
+        formData.append("resumes", file);
         
-        // Assuming actual endpoint or mock
         try {
-          await axios.post('http://localhost:8000/parse', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-          });
+          await parseResumes(formData);
           uploadedFiles.push({ name: file.name, size: (file.size / 1024 / 1024).toFixed(2), status: 'success' });
         } catch(err) {
-           console.error(err);
+           console.error("Failed to parse resume:", err);
            // mock success for design purposes if API offline
            uploadedFiles.push({ name: file.name, size: (file.size / 1024 / 1024).toFixed(2), status: 'success' });
         }

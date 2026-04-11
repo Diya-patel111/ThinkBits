@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { Users, FileText, CheckCircle, TrendingUp, Search, Filter } from 'lucide-react';
-import axios from 'axios';
+import { getCandidates } from '../services/api';
 
 export default function Dashboard() {
   const [candidates, setCandidates] = useState([]);
@@ -17,12 +17,13 @@ export default function Dashboard() {
   ];
 
   useEffect(() => {
-    axios.get('http://localhost:8000/candidates')
+    getCandidates()
       .then(res => {
-        setCandidates(res.data.candidates || fallbackCandidates);
+        const payload = res.data?.candidates || res.data?.data || res.data || [];
+        setCandidates(Array.isArray(payload) ? payload : fallbackCandidates);
       })
       .catch(err => {
-        console.error(err);
+        console.error("Failed to fetch candidates:", err);
         setCandidates(fallbackCandidates);
       })
       .finally(() => setLoading(false));
@@ -43,7 +44,7 @@ export default function Dashboard() {
           </div>
           <div>
             <p className="text-sm font-medium text-slate-500">Total Candidates</p>
-            <h3 className="text-2xl font-bold text-slate-900 mt-1">{loading ? '...' : candidates.length + 120}</h3>
+            <h3 className="text-2xl font-bold text-slate-900 mt-1">{loading ? '...' : candidates.length}</h3>
           </div>
         </div>
         
@@ -63,7 +64,7 @@ export default function Dashboard() {
           </div>
           <div>
             <p className="text-sm font-medium text-slate-500">Resumes Parsed</p>
-            <h3 className="text-2xl font-bold text-slate-900 mt-1">892</h3>
+            <h3 className="text-2xl font-bold text-slate-900 mt-1">{loading ? '...' : candidates.length}</h3>
           </div>
         </div>
 

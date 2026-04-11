@@ -1,10 +1,10 @@
 
 import { useState } from 'react';
 import { Target, Zap, Building, ChevronRight, UserCheck, Star } from 'lucide-react';
-import axios from 'axios';
+import { matchJobs } from '../services/api';
 
 export default function JobMatching() {
-  const [desc, setDesc] = useState('');
+  const [jobDescription, setJobDescription] = useState('');
   const [matching, setMatching] = useState(false);
   const [results, setResults] = useState([]);
   const [error, setError] = useState(null);
@@ -17,24 +17,28 @@ export default function JobMatching() {
   ];
 
   const handleMatch = async () => {
-    if (!desc.trim()) return;
+    if (!jobDescription.trim()) return;
     
     setMatching(true);
     setError(null);
     try {
-      const response = await axios.post('http://localhost:8000/match-all', {
-        job_description: desc
-      });
-      // slice top 5 Matches
-      setResults(response.data.matches.slice(0, 5));
+      const response = await matchJobs(jobDescription);
+      const matches = response.data?.matches || response.data || [];
+      setResults(Array.isArray(matches) ? matches.slice(0, 5) : mockResults);
     } catch (err) {
-      console.error(err);
+      console.error("Match jobs API failed:", err);
       // Fallback to mock results for design presentation if API offline
+      setError("Couldn't retrieve matches from the server. Showing demo data.");
       setResults(mockResults);
-      // setError("Failed to fetch matches. Make sure the Python API is running.");
     } finally {
       setMatching(false);
     }
+  };
+
+  const handleClear = () => {
+    setJobDescription('');
+    setResults([]);
+    setError(null);
   };
 
   return (
@@ -55,29 +59,37 @@ export default function JobMatching() {
               <h3 className="font-semibold text-slate-800">Job Requisition</h3>
             </div>
             <textarea 
-              value={desc}
-              onChange={(e) => setDesc(e.target.value)}
+              value={jobDescription}
+              onChange={(e) => setJobDescription(e.target.value)}
               placeholder="Paste the full job description, requirements, and responsibilities here..."
               className="flex-1 w-full min-h-[300px] lg:min-h-[400px] p-6 text-slate-700 bg-white border-none focus:ring-0 outline-none resize-none leading-relaxed"
             />
           </div>
           
-          <button 
-            onClick={handleMatch} disabled={matching || !desc.trim()}
-            className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-lg transition-all flex justify-center items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-          >
-            {matching ? (
-              <>
-                <Zap className="w-5 h-5 animate-pulse text-indigo-200" />
-                Processing AI Match...
-              </>
-            ) : (
-              <>
-                <Target className="w-6 h-6" />
-                Find Best Matches
-              </>
-            )}
-          </button>
+          <div className="flex gap-4">
+            <button 
+              onClick={handleClear} disabled={matching || (!jobDescription.trim() && results.length === 0)}
+              className="flex-1 py-4 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold text-lg transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Clear
+            </button>
+            <button 
+              onClick={handleMatch} disabled={matching || !jobDescription.trim()}
+              className="flex-[2] py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-lg transition-all flex justify-center items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+            >
+              {matching ? (
+                <>
+                  <Zap className="w-5 h-5 animate-pulse text-indigo-200" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <Target className="w-6 h-6" />
+                  Analyze
+                </>
+              )}
+            </button>
+          </div>
           
           {error && <p className="text-red-500 font-medium text-sm text-center">{error}</p>}
         </div>
@@ -103,7 +115,7 @@ export default function JobMatching() {
                   {results.map((res, i) => (
                     <div key={res.id || i} className="group p-5 rounded-xl border border-slate-100 hover:border-indigo-200 hover:shadow-md transition-all bg-white relative overflow-hidden">
                       {/* Score indicator line */}
-                      <div className={`absolute top-0 left-0 w-1 h-full ${res.score >= 90 ? 'bg-emerald-500' : res.score >= 80 ? 'bg-indigo-500' : 'bg-amber-500'}`}></div>
+                      <div className={`absolute top-0 left-0 w-1 h-full ${(res.score || res.matchScore || 0) >= 90 ? 'bg-emerald-500' : (res.score || res.matchScore || 0) >= 80 ? 'bg-indigo-500' : 'bg-amber-500'}`}></div>
                       
                       <div className="flex justify-between items-start mb-3">
                         <div>
@@ -112,9 +124,9 @@ export default function JobMatching() {
                         </div>
                         <div className="flex flex-col items-end">
                           <span className={`text-2xl font-black ${
-                            res.score >= 90 ? 'text-emerald-600' : res.score >= 80 ? 'text-indigo-600' : 'text-amber-600'
+                            (res.score || res.matchScore || 0) >= 90 ? 'text-emerald-600' : (res.score || res.matchScore || 0) >= 80 ? 'text-indigo-600' : 'text-amber-600'
                           }`}>
-                            {res.score}%
+                            {Math.round(res.score || res.matchScore || 0)}%
                           </span>
                           <span className="text-[10px] items-center flex gap-1 font-bold text-slate-400 uppercase tracking-wider">
                             Match <Star className="w-3 h-3 text-slate-300" fill="currentColor" />
@@ -130,7 +142,9 @@ export default function JobMatching() {
                         ))}
                       </div>
 
-                      <button className="w-full py-2 bg-slate-50 hover:bg-indigo-50 text-indigo-600 border border-slate-200 hover:border-indigo-200 rounded-lg text-sm font-semibold transition-colors flex justify-center items-center gap-1 group-hover:text-indigo-700">
+                      <button 
+                        onClick={() => window.open(res.website || `https://linkedin.com/search/results/people/?keywords=${encodeURIComponent(res.name)}`, '_blank', 'noopener,noreferrer')}
+                        className="w-full py-2 bg-slate-50 hover:bg-indigo-50 text-indigo-600 border border-slate-200 hover:border-indigo-200 rounded-lg text-sm font-semibold transition-colors flex justify-center items-center gap-1 group-hover:text-indigo-700">
                         View Details <ChevronRight className="w-4 h-4" />
                       </button>
                     </div>
