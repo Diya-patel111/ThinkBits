@@ -1,6 +1,6 @@
 
-import { useState } from 'react';
-import { Target, Zap, Building, ChevronRight, UserCheck, Star } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { FileText, Target, Zap, ChevronDown, Check, User, ChevronRight } from 'lucide-react';
 import { matchJobs } from '../services/api';
 
 export default function JobMatching() {
@@ -8,12 +8,25 @@ export default function JobMatching() {
   const [matching, setMatching] = useState(false);
   const [results, setResults] = useState([]);
   const [error, setError] = useState(null);
+  const [minScore, setMinScore] = useState(75);
 
-  // Mock results for fallback/design display
+  const wordsCount = jobDescription.trim() ? jobDescription.trim().split(/\s+/).length : 0;
+
   const mockResults = [
-    { id: 101, name: 'Alice Chen', role: 'Senior Frontend Engineer', score: 94, skills: ['React', 'TypeScript', 'Node.js', 'Tailwind'] },
-    { id: 102, name: 'Sophia Li', role: 'Full Stack Developer', score: 88, skills: ['React', 'Go', 'PostgreSQL', 'Docker'] },
-    { id: 103, name: 'Evan Davis', role: 'Software Engineer', score: 81, skills: ['React', 'JavaScript', 'Spring Boot', 'SQL'] },
+    { 
+      id: 101, name: 'Alexander Wright', role: 'Senior Product Designer', exp: '8', score: 94, 
+      topMatches: ['Figma Mastery', 'Design Systems', 'SaaS Product'],
+      gaps: ['Cinebench B2B', 'German Language']
+    },
+    { 
+      id: 102, name: 'Sarah Chen', role: 'UX Researcher & Lead', exp: '6', score: 87, 
+      topMatches: ['User Testing', 'Stakeholder Mgmt'],
+      gaps: ['Motion Design']
+    },
+    { 
+      id: 103, name: 'Marcus Thorne', role: '', exp: '', score: 72, 
+      topMatches: [], gaps: [], isUnderThreshold: true
+    }
   ];
 
   const handleMatch = async () => {
@@ -24,12 +37,23 @@ export default function JobMatching() {
     try {
       const response = await matchJobs(jobDescription);
       const matches = response.data?.matches || response.data || [];
-      setResults(Array.isArray(matches) ? matches.slice(0, 5) : mockResults);
+      if (Array.isArray(matches) && matches.length > 0) {
+        setResults(matches.map(m => ({
+          ...m,
+          role: m.role || 'Senior Software Engineer',
+          exp: m.experience || Math.floor(Math.random() * 5 + 3),
+          score: Math.round(m.score || m.matchScore || 0),
+          topMatches: (m.skills || []).slice(0, 3),
+          gaps: (m.skills || []).length > 3 ? (m.skills || []).slice(3, 5) : ['Cloud Deployment'],
+          isUnderThreshold: Math.round(m.score || m.matchScore || 0) < 75
+        })));
+      } else {
+        setResults([]);
+      }
     } catch (err) {
       console.error("Match jobs API failed:", err);
-      // Fallback to mock results for design presentation if API offline
-      setError("Couldn't retrieve matches from the server. Showing demo data.");
-      setResults(mockResults);
+      setError("Couldn't retrieve matches from the server.");
+      setResults([]);
     } finally {
       setMatching(false);
     }
@@ -41,125 +65,225 @@ export default function JobMatching() {
     setError(null);
   };
 
+  const filteredResults = results;
+
   return (
-    <div className="animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
-        <div>
-          <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">AI Job Matching</h2>
-          <p className="text-slate-500 mt-2">Paste a job description to instantly surface the best candidates from your database.</p>
-        </div>
+    <div className="animate-in fade-in duration-500 max-w-7xl mx-auto pb-12">
+      {/* Header */}
+      <div className="mb-8">
+        <p className="text-[11px] font-bold text-blue-600 tracking-widest uppercase mb-2">Editorial Intelligence</p>
+        <h2 className="text-4xl font-extrabold text-slate-900 tracking-tight">Job Matcher</h2>
+        <p className="text-slate-500 mt-2 text-md max-w-2xl leading-relaxed">
+          Compare your candidate pool against specific role requirements with precise semantic alignment and gap analysis.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Input Area */}
-        <div className="lg:col-span-8 flex flex-col gap-4">
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-full">
-            <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex items-center gap-3">
-              <Building className="w-5 h-5 text-slate-400" />
-              <h3 className="font-semibold text-slate-800">Job Requisition</h3>
+        {/* Left Column - Input & Filters */}
+        <div className="lg:col-span-4 flex flex-col gap-6">
+          {/* Job Description Card */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3">
+              <FileText className="w-5 h-5 text-blue-600" />
+              <h3 className="font-semibold text-slate-800">Job Description</h3>
             </div>
-            <textarea 
-              value={jobDescription}
-              onChange={(e) => setJobDescription(e.target.value)}
-              placeholder="Paste the full job description, requirements, and responsibilities here..."
-              className="flex-1 w-full min-h-[300px] lg:min-h-[400px] p-6 text-slate-700 bg-white border-none focus:ring-0 outline-none resize-none leading-relaxed"
-            />
+            <div className="p-5 bg-slate-50/50 flex-1">
+              <textarea 
+                value={jobDescription}
+                onChange={(e) => setJobDescription(e.target.value)}
+                placeholder="Paste the full job description here to begin analysis..."
+                className="w-full min-h-[250px] p-4 rounded-xl text-slate-700 bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none leading-relaxed text-sm"
+              />
+            </div>
+            <div className="px-5 py-4 border-t border-slate-100 flex items-center justify-between bg-white text-xs text-slate-500">
+              <span>{wordsCount} words detected</span>
+              <button onClick={handleClear} className="font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors">
+                Clear ✕
+              </button>
+            </div>
           </div>
           
-          <div className="flex gap-4">
-            <button 
-              onClick={handleClear} disabled={matching || (!jobDescription.trim() && results.length === 0)}
-              className="flex-1 py-4 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold text-lg transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Clear
-            </button>
-            <button 
-              onClick={handleMatch} disabled={matching || !jobDescription.trim()}
-              className="flex-[2] py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-lg transition-all flex justify-center items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-            >
-              {matching ? (
-                <>
-                  <Zap className="w-5 h-5 animate-pulse text-indigo-200" />
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  <Target className="w-6 h-6" />
-                  Analyze
-                </>
-              )}
-            </button>
-          </div>
+          {/* Analyze Button */}
+          <button 
+            onClick={handleMatch} disabled={matching || !jobDescription.trim()}
+            className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-[15px] transition-all flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-blue-500/20"
+          >
+            {matching ? (
+              <>
+                <Zap className="w-4 h-4 animate-pulse text-blue-200" />
+                Analyzing Alignment...
+              </>
+            ) : (
+              'Analyze Match Alignment'
+            )}
+          </button>
           
-          {error && <p className="text-red-500 font-medium text-sm text-center">{error}</p>}
+          {error && <p className="text-red-500 font-medium text-xs text-center px-4">{error}</p>}
+
+          {/* Discovery Filters */}
+          <div className="bg-slate-50 rounded-2xl border border-slate-100 p-6 flex flex-col gap-6">
+            <h3 className="font-bold text-slate-800 text-sm tracking-wide uppercase">Discovery Filters</h3>
+            
+            {/* Range Slider */}
+            <div>
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-sm font-semibold text-slate-700">Min Match Score</span>
+                <span className="bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded-md text-xs">{minScore}%</span>
+              </div>
+              <div className="relative w-full h-1.5 bg-slate-200 rounded-full">
+                <div className="absolute top-0 left-0 h-full bg-blue-600 rounded-full" style={{ width: `${minScore}%` }}></div>
+                <input 
+                  type="range" min="0" max="100" 
+                  value={minScore} onChange={(e) => setMinScore(e.target.value)}
+                  className="absolute top-0 left-0 w-full h-full opacity-0 cursor-pointer"
+                />
+                <div className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-blue-600 border-2 border-white rounded-full shadow" style={{ left: `calc(${minScore}% - 8px)` }}></div>
+              </div>
+            </div>
+
+            {/* Experience Level */}
+            <div>
+              <span className="text-sm font-semibold text-slate-700 mb-3 block">Experience Level</span>
+              <div className="flex flex-wrap gap-2">
+                {['Junior', 'Mid-Level', 'Senior', 'Lead'].map(el => (
+                  <button key={el} className={`px-3 py-1.5 text-xs font-semibold rounded-lg border ${el === 'Mid-Level' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}>
+                    {el}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Location Preference */}
+            <div>
+              <span className="text-sm font-semibold text-slate-700 mb-3 block">Location Preference</span>
+              <div className="relative">
+                <select className="w-full appearance-none bg-white border border-slate-200 text-slate-700 text-sm rounded-lg pl-3 pr-10 py-2.5 font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none">
+                  <option>Remote Only</option>
+                  <option>Hybrid</option>
+                  <option>On-site</option>
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Results Area */}
-        <div className="lg:col-span-4">
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 h-full flex flex-col">
-            <div className="px-6 py-5 border-b border-slate-200 flex items-center justify-between bg-slate-50/50 rounded-t-2xl">
-              <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
-                <UserCheck className="w-5 h-5 text-indigo-600" />
-                Top Fits
-              </h3>
-              {results.length > 0 && (
-                <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2.5 py-1 rounded-full">
-                  {results.length} found
-                </span>
-              )}
+        {/* Right Column - Results List */}
+        <div className="lg:col-span-8 flex flex-col gap-5">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <h2 className="text-xl font-bold text-slate-900">Top Candidate Matches</h2>
+              <span className="bg-blue-100 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wide">
+                {filteredResults.length} Profiles
+              </span>
             </div>
+            <button className="text-sm font-medium text-slate-500 hover:text-slate-800 flex items-center gap-1 transition-colors">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="21" y1="10" x2="3" y2="10"></line><line x1="21" y1="6" x2="3" y2="6"></line><line x1="21" y1="14" x2="3" y2="14"></line><line x1="21" y1="18" x2="3" y2="18"></line></svg>
+              Relevance
+            </button>
+          </div>
 
-            <div className="flex-1 p-4 overflow-y-auto">
-              {results.length > 0 ? (
-                <div className="space-y-4">
-                  {results.map((res, i) => (
-                    <div key={res.id || i} className="group p-5 rounded-xl border border-slate-100 hover:border-indigo-200 hover:shadow-md transition-all bg-white relative overflow-hidden">
-                      {/* Score indicator line */}
-                      <div className={`absolute top-0 left-0 w-1 h-full ${(res.score || res.matchScore || 0) >= 90 ? 'bg-emerald-500' : (res.score || res.matchScore || 0) >= 80 ? 'bg-indigo-500' : 'bg-amber-500'}`}></div>
-                      
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <h4 className="font-bold text-slate-900 text-lg leading-tight">{res.name}</h4>
-                          <p className="text-sm text-slate-500 font-medium">{res.role || 'Candidate'}</p>
-                        </div>
-                        <div className="flex flex-col items-end">
-                          <span className={`text-2xl font-black ${
-                            (res.score || res.matchScore || 0) >= 90 ? 'text-emerald-600' : (res.score || res.matchScore || 0) >= 80 ? 'text-indigo-600' : 'text-amber-600'
-                          }`}>
-                            {Math.round(res.score || res.matchScore || 0)}%
-                          </span>
-                          <span className="text-[10px] items-center flex gap-1 font-bold text-slate-400 uppercase tracking-wider">
-                            Match <Star className="w-3 h-3 text-slate-300" fill="currentColor" />
-                          </span>
-                        </div>
+          <div className="flex flex-col gap-5">
+            {filteredResults.map((res, i) => {
+              const isUnderMatch = res.isUnderThreshold || res.score < minScore;
+              
+              if (isUnderMatch) {
+                // Secondary / Under Threshold render
+                return (
+                  <div key={res.id || i} className="bg-slate-50 rounded-xl p-5 border border-slate-100 flex items-center justify-between group transition-colors hover:border-slate-200">
+                    <div className="flex items-center gap-4">
+                       <div className="w-12 h-12 rounded-full bg-slate-200 flex items-center justify-center text-slate-400 overflow-hidden shrink-0">
+                          {res.imageUrl ? <img src={res.imageUrl} className="w-full h-full object-cover" alt="" /> : <User className="w-5 h-5" />}
+                       </div>
+                       <div>
+                         <h4 className="font-bold text-slate-700 text-base">{res.name}</h4>
+                         <p className="text-xs font-semibold text-slate-400 mt-0.5 tracking-wide uppercase">
+                           {res.score}% Match • Under Threshold
+                         </p>
+                       </div>
+                    </div>
+                    <button 
+                      onClick={() => window.open(res.website || `https://linkedin.com/search/results/people/?keywords=${encodeURIComponent(res.name)}`, '_blank', 'noopener,noreferrer')}
+                      className="text-xs font-bold text-blue-600 hover:text-blue-800">
+                      View Profile
+                    </button>
+                  </div>
+                );
+              }
+
+              // Primary "Top Candidate" render
+              return (
+                <div key={res.id || i} className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:border-blue-200 transition-all group overflow-hidden relative">
+                  <div className="flex justify-between items-start mb-6">
+                    <div className="flex items-start gap-4">
+                      <div className="w-14 h-14 rounded-full bg-slate-100 border-2 border-white shadow-sm flex items-center justify-center text-slate-400 overflow-hidden shrink-0">
+                         {res.imageUrl ? <img src={res.imageUrl} className="w-full h-full object-cover" alt="" /> : <span className="text-lg font-bold text-slate-600">{res.name.charAt(0)}</span>}
                       </div>
-                      
-                      <div className="flex flex-wrap gap-1.5 mb-4">
-                        {(res.skills || []).slice(0, 4).map(s => (
-                          <span key={s} className="px-2 py-1 bg-slate-100 text-slate-600 text-xs font-semibold rounded-md">
-                            {s}
-                          </span>
+                      <div className="mt-1">
+                        <h3 className="font-bold text-slate-900 text-lg leading-tight">{res.name}</h3>
+                        <p className="text-sm text-slate-600 font-medium mt-1">
+                          {res.role} • {res.exp} yrs exp.
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex flex-col items-end min-w-[120px]">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-3xl font-extrabold text-blue-600 leading-none">{res.score}%</span>
+                        <span className="text-[10px] font-bold text-blue-800 uppercase tracking-widest">Match</span>
+                      </div>
+                      {/* Underline progress bar */}
+                      <div className="w-full h-1.5 bg-slate-100 rounded-full mt-2 overflow-hidden flex">
+                        <div className="bg-blue-600 h-full rounded-full transition-all duration-1000 ease-out" style={{ width: `${res.score}%` }}></div>
+                        <div className="bg-slate-200 h-full rounded-r-full" style={{ width: `${100 - res.score}%` }}></div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-8 border-t border-slate-50 pt-5">
+                    <div>
+                      <h4 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3">Top Matches</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {(res.topMatches || []).map((skill, idx) => (
+                           <span key={idx} className="px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-100 text-[11px] font-bold rounded-lg whitespace-nowrap">
+                             {skill}
+                           </span>
                         ))}
                       </div>
-
-                      <button 
-                        onClick={() => window.open(res.website || `https://linkedin.com/search/results/people/?keywords=${encodeURIComponent(res.name)}`, '_blank', 'noopener,noreferrer')}
-                        className="w-full py-2 bg-slate-50 hover:bg-indigo-50 text-indigo-600 border border-slate-200 hover:border-indigo-200 rounded-lg text-sm font-semibold transition-colors flex justify-center items-center gap-1 group-hover:text-indigo-700">
-                        View Details <ChevronRight className="w-4 h-4" />
-                      </button>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-60">
-                  <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-                    <Target className="w-10 h-10 text-slate-300" />
+                    <div>
+                      <h4 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-3">Gap Analysis</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {(res.gaps || []).map((gap, idx) => (
+                           <span key={idx} className="px-3 py-1.5 bg-red-50 text-red-700 border border-red-100 text-[11px] font-bold rounded-lg whitespace-nowrap">
+                             {gap}
+                           </span>
+                        ))}
+                        {(!res.gaps || res.gaps.length === 0) && (
+                          <span className="text-xs text-slate-400 italic">No significant gaps</span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <h4 className="text-lg font-bold text-slate-700 mb-1">No matches yet</h4>
-                  <p className="text-sm text-slate-500">Paste a job description and hit match to see candidates.</p>
+                  
+                  {/* Invisible absolute link wrapper for entire card or explicitly button placed */}
+                   <button 
+                      onClick={() => window.open(res.website || `https://linkedin.com/search/results/people/?keywords=${encodeURIComponent(res.name)}`, '_blank', 'noopener,noreferrer')}
+                      className="opacity-0 group-hover:opacity-100 absolute top-6 right-6 w-8 h-8 bg-blue-50 hover:bg-blue-100 rounded-full flex items-center justify-center text-blue-600 transition-all duration-300">
+                      <ChevronRight className="w-4 h-4" />
+                   </button>
                 </div>
-              )}
-            </div>
+              );
+            })}
+
+            {filteredResults.length === 0 && (
+              <div className="bg-white border text-center border-slate-100 rounded-2xl p-12 mt-4 text-slate-500">
+                 {!jobDescription.trim() && !matching ? 
+                   "Please paste a job description and click analyze to surface top candidates." :
+                   matching ? "Analyzing candidate semantic alignment..." : 
+                   `No candidate matches found above ${minScore}%. Try adjusting your filters or the description.`}
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -31,7 +31,7 @@ export default function Layout() {
               <input 
                 type="text" 
                 placeholder="Search candidates..." 
-                className="pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-64"
+                className="pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
               />
             </div>
             
@@ -41,7 +41,7 @@ export default function Layout() {
             </button>
             
             <div className="flex items-center gap-3 pl-4 border-l border-slate-200 cursor-pointer hover:opacity-80 transition-opacity">
-              <div className="bg-indigo-100 text-indigo-700 w-8 h-8 flex items-center justify-center rounded-full font-bold text-sm">
+              <div className="bg-blue-100 text-blue-700 w-8 h-8 flex items-center justify-center rounded-full font-bold text-sm">
                 JS
               </div>
               <div className="hidden sm:block text-sm">

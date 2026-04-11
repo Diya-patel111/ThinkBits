@@ -88,7 +88,7 @@ exports.matchJobs = async (req, res) => {
     // Expected python response mapping: { [candidateId]: matchScorePercent } or [ { id, score } ]
     
     let scoredCandidates = candidates.map(c => {
-      let scoreObj = Array.isArray(aiMatchesResponse) ? aiMatchesResponse.find(m => m.id === c.id.toString()) : null;
+      let scoreObj = Array.isArray(aiMatchesResponse) ? aiMatchesResponse.find(m => m.id && m.id.toString() === c.id.toString()) : null;
       let aiScore = scoreObj ? scoreObj.score : 0;
       return { ...c, matchScore: aiScore };
     });
@@ -113,13 +113,14 @@ exports.matchJobs = async (req, res) => {
 exports.getCandidates = async (req, res) => {
   try {
     const limit = parseInt(req.query.limit, 10) || 50;
-    const candidates = await Candidate.find().sort({ createdAt: -1 }).limit(limit);
+    const candidates = await Candidate.getAll();
     
     return res.status(200).json({
       count: candidates.length,
-      data: candidates
+      data: candidates.slice(0, limit)
     });
   } catch (error) {
+    console.error('Error fetching candidates:', error);
     res.status(500).json({ error: 'Error fetching candidates.' });
   }
 };

@@ -39,7 +39,7 @@ export default function Dashboard() {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-start gap-4">
-          <div className="bg-indigo-100 p-3 rounded-xl text-indigo-600">
+          <div className="bg-blue-100 p-3 rounded-xl text-blue-600">
             <Users className="w-6 h-6" />
           </div>
           <div>
@@ -90,7 +90,7 @@ export default function Dashboard() {
                <input 
                  type="text" 
                  placeholder="Search by name or skill..." 
-                 className="pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none w-full sm:w-64" 
+                 className="pl-9 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none w-full sm:w-64" 
                />
              </div>
              <button className="flex items-center gap-2 border border-slate-200 px-4 py-2 text-sm rounded-lg text-slate-700 hover:bg-slate-50 font-medium">
@@ -118,7 +118,7 @@ export default function Dashboard() {
                   <tr key={c.id || i} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
-                         <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm">
+                         <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm">
                            {c.name ? c.name.charAt(0) : '?'}
                          </div>
                          <div>
@@ -139,7 +139,7 @@ export default function Dashboard() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <div className="w-full bg-slate-200 rounded-full h-2 max-w-[100px]">
-                          <div className="bg-indigo-600 h-2 rounded-full" style={{ width: `${c.score || Math.floor(Math.random() * 40 + 50)}%` }}></div>
+                          <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${c.score || Math.floor(Math.random() * 40 + 50)}%` }}></div>
                         </div>
                         <span className="text-sm font-medium text-slate-700">{c.score || Math.floor(Math.random() * 40 + 50)}%</span>
                       </div>
@@ -159,7 +159,7 @@ export default function Dashboard() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right whitespace-nowrap text-sm font-medium">
-                      <button className="text-indigo-600 hover:text-indigo-900">View Profile</button>
+                      <button className="text-blue-600 hover:text-blue-900">View Profile</button>
                     </td>
                   </tr>
                 ))

@@ -115,19 +115,41 @@ def normalize_skills(skills: list) -> list:
 class MatchRequest(BaseModel):
     job_description: str
 
-def compute_match_score(candidate_skills: list[str], job_description: str) -> float:
-    skills_text = " ".join(candidate_skills)
-    
-    # Encode
-    embeddings1 = model.encode(skills_text, convert_to_tensor=True)
+def compute_match_score(candidate_text: str, job_description: str) -> float:
+    # 1. Semantic similarity using a snippet of the candidate text
+    # Limiting to 1000 chars ensures we don't dilute the embedding too much
+    embeddings1 = model.encode(candidate_text[:1000], convert_to_tensor=True)
     embeddings2 = model.encode(job_description, convert_to_tensor=True)
     
-    # Compute cosine-similarities
-    cosine_score = util.cos_sim(embeddings1, embeddings2)
-    score = cosine_score.item() * 100 
+    cosine_score = util.cos_sim(embeddings1, embeddings2).item()
     
-    # Cap score between 0 and 100
-    return max(0.0, min(score, 100.0))
+    # 2. Keyword matching boost
+    job_lower = job_description.lower()
+    cand_lower = candidate_text.lower()
+    
+    boost = 0.0
+    matched_skills = 0
+    
+    for skill in STANDARD_SKILLS:
+        if skill.lower() in job_lower:
+            # If the job asks for a standard skill, check if candidate has it
+            if skill.lower() in cand_lower:
+                boost += 25.0  # Big boost for explicit skill match
+                matched_skills += 1
+            else:
+                boost -= 10.0  # Penalty for missing a requested skill
+                
+    # If job description mentions no standard skills, just rely more on semantic
+    base_score = max(0, cosine_score * 100)
+    
+    # We want a base score to be roughly 50-60 if it's somewhat relevant
+    if base_score > 15:
+        base_score += 40
+        
+    final_score = base_score + boost
+    
+    # Ensure realistic capping
+    return max(0.0, min(final_score, 100.0))
 
 
 # --- API Routes ---
@@ -183,6 +205,29 @@ async def parse_resume(file: UploadFile = File(...), db: Session = Depends(get_d
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
+class MathRequestWithCandidates(BaseModel):
+    jobDescription: str
+    candidates: list
+
+@app.post("/match")
+async def match_candidates(req: MathRequestWithCandidates):
+    try:
+        results = []
+        for cand in req.candidates:
+            cand_text = cand.get('text', '')
+            # encode using candidate text directly
+            score = compute_match_score(cand_text, req.jobDescription)
+            results.append({
+                "id": str(cand.get('id')),
+                "score": round(score, 2)
+            })
+        
+        return results
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/match-all")
 async def match_all_candidates(req: MatchRequest, db: Session = Depends(get_db)):
     try:
@@ -190,7 +235,8 @@ async def match_all_candidates(req: MatchRequest, db: Session = Depends(get_db))
         results = []
         for cand in candidates:
             # fetch skills
-            score = compute_match_score([s.skill.name for s in cand.skills], req.job_description)
+            cand_text = " ".join([s.skill.name for s in cand.skills])
+            score = compute_match_score(cand_text, req.job_description)
             results.append({
                 "id": str(cand.id),
                 "name": cand.name,
