@@ -8,6 +8,7 @@ import os
 import tempfile
 from pathlib import Path
 from dotenv import load_dotenv
+from google.genai import types
 
 # Local project imports
 from database import get_db, engine
@@ -75,38 +76,88 @@ async def parse_resume_api(file: UploadFile = File(...)):
 class MatchRequest(BaseModel):
     job_description: str
 
+class MatchRequestWithCandidates(BaseModel):
+    job_description: str
+    candidates: list
+
+@app.post("/api/v1/job/match")
+async def api_v1_job_match(req: MatchRequestWithCandidates):
+    try:
+        # Ask LLM to extract key skills and requirements from the job description
+        # (gracefully handles quota limits by falling back automatically)
+        prompt = f"Extract only the core skills, required experience, and key technical requirements from this job description: {req.job_description}"
+        if llm_service.client:
+           try:
+               response = await llm_service.client.aio.models.generate_content(
+                   model=llm_service.model_id,
+                   contents=prompt,
+                   config=types.GenerateContentConfig(temperature=0.0) # Set temperature to 0 for deterministic output
+               )
+               refined_jd = response.text
+           except Exception:
+               refined_jd = req.job_description
+        else:
+           refined_jd = req.job_description
+           
+        results = []
+        for cand in req.candidates:
+            cand_text = cand.get('resume_text', '') 
+            if not cand_text:
+                skills = cand.get('skills', [])
+                if isinstance(skills, list):
+                    skills_text = " ".join([str(s) for s in skills])
+                else:
+                    skills_text = str(skills)
+                cand_text = f"{cand.get('name', '')} {skills_text} {cand.get('location', '')}"
+                
+            # Score against the LLM Refined Job Description, defaulting to raw JD if limit reached
+            score = compute_match_score(cand_text, refined_jd)
+            results.append({
+                "id": str(cand.get('id')),
+                "score": round(score, 2)
+            })
+        return results
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
 class MathRequestWithCandidates(BaseModel):
     jobDescription: str
     candidates: list
 
 def compute_match_score(candidate_text: str, job_description: str) -> float:
-    # 1. Semantic similarity using a snippet of the candidate text
+    # 1. Semantic similarity
     embeddings1 = model.encode(candidate_text[:1000], convert_to_tensor=True)
-    embeddings2 = model.encode(job_description, convert_to_tensor=True)
+    embeddings2 = model.encode(job_description[:1000], convert_to_tensor=True)
     
     cosine_score = util.cos_sim(embeddings1, embeddings2).item()
     
-    # 2. Keyword matching boost
+    # 2. Scale the cosine score properly (MiniLM typical ranges: <0.15=unrelated, >0.6=very close)
+    # This prevents generic text from automatically getting a high percentage.
+    normalized_sim = max(0, (cosine_score - 0.15) / 0.55) * 100
+    
+    # 3. Keyword matching evaluation
     job_lower = job_description.lower()
     cand_lower = candidate_text.lower()
     
+    # Track how many tech skills from the standard list are actually required in the JD
+    job_skills_found = [skill for skill in STANDARD_SKILLS if skill.lower() in job_lower]
+    
     boost = 0.0
-    matched_skills = 0
-    
-    for skill in STANDARD_SKILLS:
-        if skill.lower() in job_lower:
+    if len(job_skills_found) > 0:
+        # It's a tech job: apply rewards and penalties based on these specific requested skills
+        for skill in job_skills_found:
             if skill.lower() in cand_lower:
-                boost += 25.0
-                matched_skills += 1
+                boost += 20.0  # Reward matching skill
             else:
-                boost -= 10.0
-                
-    base_score = max(0, cosine_score * 100)
-    
-    if base_score > 15:
-        base_score += 40
+                boost -= 15.0  # Penalize missing skill
+    else:
+        # If it's a non-tech job (like Marketing), we DO NOT apply arbitrary standard tech boosts.
+        # We rely solely on the mathematical semantic similarity (which will be low for a dev resume).
+        pass
         
-    final_score = base_score + boost
+    final_score = normalized_sim + boost
     return max(0.0, min(final_score, 100.0))
 
 @app.post("/match")

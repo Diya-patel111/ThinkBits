@@ -34,6 +34,7 @@ Must return ONLY raw JSON matching this structure exactly (handle missing with n
   "phone": "",
   "location": "",
   "skills": [],
+  "total_years_experience": 0, // Extract total years of work experience as an integer
   "experience": [
     {{"role": "", "company": "", "duration": "", "description": ""}}
   ],
@@ -68,19 +69,44 @@ Must return ONLY raw JSON matching this structure exactly (handle missing with n
             return await self._fallback_local_llm_extract(prompt)
 
     async def _fallback_local_llm_extract(self, prompt):
-        # Mocking an async LLM call for fallback when API key is missing
+        # Mocking an async LLM call for fallback when API key is missing or quota exceeded
         await asyncio.sleep(0.5)
-        logger.info("Calling Local LLM Mock layer...")
+        logger.info("Calling Local LLM Mock layer due to API failure/quota...")
+        
+        # Attempt minimal regex parsing from the prompt text instead of purely hardcoded values
+        import re
+        
+        # Simple name extraction: find first lines that look like a name
+        name_match = re.search(r"(?i)Resume Context:\n+([A-Z][a-z]+ [A-Z][a-z]+)", prompt)
+        name = name_match.group(1) if name_match else "Unknown Candidate"
+        
+        # Email extraction
+        email_match = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", prompt)
+        email = email_match.group(0) if email_match else "unknown@example.com"
+        
+        # Phone extraction
+        phone_match = re.search(r"\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}", prompt)
+        phone = phone_match.group(0) if phone_match else "Unknown Phone"
+        
+        # Collect some skills from text directly if standard skills are found
+        skills_found = []
+        standard_skills = ["python", "java", "sql", "aws", "docker", "javascript", "react", "node", "typescript", "c++", "c#", "go", "ruby", "machine learning"]
+        text_lower = prompt.lower()
+        for s in standard_skills:
+            if s in text_lower:
+                skills_found.append(s.title())
+                
         return {
-            "name": "Jane Doe",
-            "email": "jane@example.com",
-            "phone": "+1 555 123 4567",
-            "location": "San Francisco, CA",
-            "skills": ["Python", "Machine Learning", "System Architecture", "Agentic Workflows"],
+            "name": name,
+            "email": email,
+            "phone": phone,
+            "location": "Unknown Location",
+            "skills": list(set(skills_found)) if skills_found else ["Python", "Machine Learning", "System Architecture", "Agentic Workflows"],
             "experience": [],
             "education": [],
             "projects": [],
-            "certifications": []
+            "certifications": [],
+            "total_years_experience": 0
         }
         
     def _get_empty_schema(self):

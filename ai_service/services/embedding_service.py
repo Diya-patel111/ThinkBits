@@ -1,8 +1,14 @@
 from sentence_transformers import SentenceTransformer, util
 import os
+import logging
+import warnings
 
-# Set environment variable to avoid tokenizers parallelism warning
+# Suppress HuggingFace and transformers warnings
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+warnings.filterwarnings("ignore", category=UserWarning)
+logging.getLogger("transformers.modeling_utils").setLevel(logging.ERROR)
+logging.getLogger("huggingface_hub").setLevel(logging.ERROR)
 
 class EmbeddingService:
     def __init__(self, model_name="all-MiniLM-L6-v2"):
